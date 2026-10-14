@@ -37,7 +37,7 @@ jobs:
 
       - name: Build Android APK
         run: |
-          gradle assembleDebug --stacktrace --no-daemon
+          gradle assembleDebug --stacktrace --info --no-daemon
 
       - name: Prepare APK Artifact
         run: |

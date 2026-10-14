@@ -118,20 +118,16 @@ fun CircularTachometer(
                 val tickFraction = i / 7f
                 val tickAngleDeg = startAngle + (sweepAngle * tickFraction)
                 val tickAngleRad = Math.toRadians(tickAngleDeg.toDouble())
+                val cosVal = cos(tickAngleRad).toFloat()
+                val sinVal = sin(tickAngleRad).toFloat()
 
                 val tickInnerR = radius - 16.dp.toPx()
                 val tickOuterR = radius - 4.dp.toPx()
                 val isRedline = (i * 1000) >= redlineRpm
                 val tickColor = if (isRedline) AmgRed else AmgSilverMuted
 
-                val p1 = Offset(
-                    (center.x + tickInnerR * cos(tickAngleRad)).toFloat(),
-                    (center.y + tickInnerR * sin(tickAngleRad)).toFloat()
-                )
-                val p2 = Offset(
-                    (center.x + tickOuterR * cos(tickAngleRad)).toFloat(),
-                    (center.y + tickOuterR * sin(tickAngleRad)).toFloat()
-                )
+                val p1 = Offset(center.x + tickInnerR * cosVal, center.y + tickInnerR * sinVal)
+                val p2 = Offset(center.x + tickOuterR * cosVal, center.y + tickOuterR * sinVal)
                 drawLine(
                     color = tickColor,
                     start = p1,
@@ -144,11 +140,10 @@ fun CircularTachometer(
             // Animated Needle
             val needleAngleDeg = startAngle + ((animatedRpm / maxRpm) * sweepAngle)
             val needleAngleRad = Math.toRadians(needleAngleDeg.toDouble())
+            val cosNeedle = cos(needleAngleRad).toFloat()
+            val sinNeedle = sin(needleAngleRad).toFloat()
             val needleLength = radius - 20.dp.toPx()
-            val needleTip = Offset(
-                (center.x + needleLength * cos(needleAngleRad)).toFloat(),
-                (center.y + needleLength * sin(needleAngleRad)).toFloat()
-            )
+            val needleTip = Offset(center.x + needleLength * cosNeedle, center.y + needleLength * sinNeedle)
 
             // Needle glow / line
             drawLine(

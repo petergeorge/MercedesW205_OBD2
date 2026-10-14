@@ -27,9 +27,9 @@ import com.mercedes.w205.obd.ui.theme.*
 import com.mercedes.w205.obd.ui.viewmodel.ObdViewModel
 
 enum class NavigationTab(val title: String, val icon: ImageVector) {
-    COCKPIT("Cockpit", Icons.Default.Speed),
-    DIAGNOSTICS("DTC Scan", Icons.Default.Build),
-    LOGGER("Telemetry", Icons.Default.Timeline)
+    COCKPIT("Cockpit", Icons.Filled.Speed),
+    DIAGNOSTICS("DTC Scan", Icons.Filled.Build),
+    LOGGER("Telemetry", Icons.Filled.Timeline)
 }
 
 class MainActivity : ComponentActivity() {
