@@ -174,7 +174,7 @@ fun CockpitScreen(
                 fontWeight = FontWeight.Bold
             )
             LinearProgressIndicator(
-                progress = { (state.throttlePct / 100f).coerceIn(0f, 1f) },
+                progress = (state.throttlePct / 100f).coerceIn(0f, 1f),
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 12.dp)

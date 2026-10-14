@@ -5,7 +5,7 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch: # Allows manual trigger from GitHub Actions web UI
+  workflow_dispatch:
 
 jobs:
   build:
@@ -22,14 +22,22 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Set up Gradle 8.4
+      - name: Set up Gradle 8.7
         uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: '8.4'
+          gradle-version: '8.7'
+          cache-disabled: true
+
+      - name: Configure Android SDK & Licenses
+        run: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          mkdir -p "$ANDROID_SDK_ROOT/licenses" || true
+          echo -e "24333f8a63b6825ea9c5514f83c2829b004d1fee\nd56f5187479451eabf01fb78af6dfcb131a6481e\n24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$ANDROID_SDK_ROOT/licenses/android-sdk-license"
+          echo -e "84831b9409646a918e30573bab4c9c91346d8abd" > "$ANDROID_SDK_ROOT/licenses/android-sdk-preview-license"
 
       - name: Build Android APK
         run: |
-          gradle assembleDebug --stacktrace
+          gradle assembleDebug --stacktrace --no-daemon
 
       - name: Prepare APK Artifact
         run: |
