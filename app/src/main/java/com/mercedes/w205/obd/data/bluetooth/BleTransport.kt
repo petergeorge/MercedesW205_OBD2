@@ -125,7 +125,7 @@ class BleTransport(
         }
     }
 
-    override suspend fun disconnect() = withContext(Dispatchers.IO) {
+    override suspend fun disconnect(): Unit = withContext(Dispatchers.IO) {
         try {
             gatt?.disconnect()
             gatt?.close()
@@ -136,6 +136,7 @@ class BleTransport(
             writeCharacteristic = null
             _status.value = ConnectionStatus.DISCONNECTED
         }
+        Unit
     }
 
     override suspend fun sendCommand(cmd: String): String = withContext(Dispatchers.IO) {
