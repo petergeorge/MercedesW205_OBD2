@@ -8,7 +8,6 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -22,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mercedes.w205.obd.ui.screens.*
 import com.mercedes.w205.obd.ui.theme.*
 import com.mercedes.w205.obd.ui.viewmodel.ObdViewModel
@@ -33,8 +33,6 @@ enum class NavigationTab(val title: String, val icon: ImageVector) {
 }
 
 class MainActivity : ComponentActivity() {
-
-    private val viewModel: ObdViewModel by viewModels()
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -51,6 +49,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MercedesW205Theme {
+                val viewModel: ObdViewModel = viewModel()
                 MainAppContent(viewModel = viewModel)
             }
         }
