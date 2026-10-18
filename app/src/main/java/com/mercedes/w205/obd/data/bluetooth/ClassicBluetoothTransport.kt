@@ -5,13 +5,13 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.UUID
@@ -31,7 +31,7 @@ class ClassicBluetoothTransport(
     companion object {
         // Standard SPP (Serial Port Profile) UUID for ELM327 Bluetooth Classic
         val SPP_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
-        private const val READ_TIMEOUT_MS = 2500L
+        private const val DEFAULT_TIMEOUT_MS = 1500L
     }
 
     @SuppressLint("MissingPermission")
@@ -48,8 +48,21 @@ class ClassicBluetoothTransport(
             val btDevice: BluetoothDevice = bluetoothAdapter.getRemoteDevice(device.address)
             bluetoothAdapter.cancelDiscovery()
 
-            val sock = btDevice.createRfcommSocketToServiceRecord(SPP_UUID)
-            sock.connect()
+            // Try standard RFCOMM socket first
+            var sock: BluetoothSocket? = null
+            try {
+                sock = btDevice.createRfcommSocketToServiceRecord(SPP_UUID)
+                sock.connect()
+            } catch (e: Exception) {
+                // Fallback for tricky Bluetooth devices (reflection fallback method 1)
+                try {
+                    val m = btDevice.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
+                    sock = m.invoke(btDevice, 1) as BluetoothSocket
+                    sock.connect()
+                } catch (e2: Exception) {
+                    throw e
+                }
+            }
 
             socket = sock
             inputStream = sock.inputStream
@@ -86,35 +99,49 @@ class ClassicBluetoothTransport(
             val out = outputStream ?: return@withContext "ERROR: NOT CONNECTED"
             val input = inputStream ?: return@withContext "ERROR: NOT CONNECTED"
 
+            // 1. Flush any stale bytes left in the input buffer before sending
+            try {
+                while (input.available() > 0) {
+                    input.read()
+                }
+            } catch (e: Exception) {
+                // Ignore flush errors
+            }
+
+            // 2. Transmit command terminated by carriage return
             val formattedCmd = (cmd.trim() + "\r").toByteArray(Charsets.US_ASCII)
             out.write(formattedCmd)
             out.flush()
 
-            // Read until prompt character '>' from ELM327
+            // 3. Read response until prompt character '>' or timeout
             val responseBuilder = StringBuilder()
             val startTime = System.currentTimeMillis()
+            val buffer = ByteArray(256)
+            val timeoutMs = if (cmd.startsWith("0100") || cmd.startsWith("ATSP")) 4500L else DEFAULT_TIMEOUT_MS
 
-            val readResult = withTimeoutOrNull(READ_TIMEOUT_MS) {
-                while (true) {
-                    if (input.available() > 0) {
-                        val b = input.read()
-                        if (b == -1) break
-                        val char = b.toChar()
-                        if (char == '>') {
-                            break // ELM327 command response finished
+            while (System.currentTimeMillis() - startTime < timeoutMs) {
+                val avail = try { input.available() } catch (e: Exception) { 0 }
+                if (avail > 0) {
+                    val bytesToRead = minOf(avail, buffer.size)
+                    val bytesRead = input.read(buffer, 0, bytesToRead)
+                    if (bytesRead > 0) {
+                        for (i in 0 until bytesRead) {
+                            val c = buffer[i].toInt().toChar()
+                            if (c == '>') {
+                                // Prompt reached: command execution completed
+                                val res = responseBuilder.toString().replace(">", "").trim()
+                                return@withContext res
+                            }
+                            responseBuilder.append(c)
                         }
-                        responseBuilder.append(char)
-                    } else {
-                        kotlinx.coroutines.delay(5)
                     }
-                    if (System.currentTimeMillis() - startTime > READ_TIMEOUT_MS) {
-                        break
-                    }
+                } else {
+                    delay(8)
                 }
-                responseBuilder.toString()
             }
 
-            return@withContext readResult?.trim() ?: "TIMEOUT"
+            val finalStr = responseBuilder.toString().replace(">", "").trim()
+            return@withContext if (finalStr.isNotEmpty()) finalStr else "TIMEOUT"
         }
     }
 

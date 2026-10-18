@@ -11,14 +11,18 @@ class Elm327Protocol(
 
     /**
      * Initializes the ELM327 interface specifically for 2019 Mercedes-Benz W205.
-     * Forces Protocol 6 (ISO 15765-4 CAN 11-bit / 500kbaud).
+     * Robust adaptive sequence supporting both genuine and clone ELM327 adapters.
      */
     suspend fun initialize(): Boolean {
         isInitialized = false
 
+        // 0. Wake up ELM327 / clear pending buffer
+        transport.sendCommand("\r")
+        delay(150)
+
         // 1. Reset ELM327
         val r1 = transport.sendCommand("ATZ")
-        delay(600)
+        delay(800)
 
         // 2. Echo OFF (reduces serial traffic)
         transport.sendCommand("ATE0")
@@ -36,26 +40,36 @@ class Elm327Protocol(
         transport.sendCommand("ATH0")
         delay(50)
 
-        // 6. Force ISO 15765-4 CAN 11-bit 500k (Standard W205 Powertrain bus)
-        transport.sendCommand("ATSP6")
+        // 6. Adaptive Timing on
+        transport.sendCommand("ATAT1")
         delay(50)
 
-        // 7. Verify CAN bus response by querying Mode 01 Supported PIDs
+        // 7. Force ISO 15765-4 CAN 11-bit 500k (Standard W205 Powertrain bus)
+        transport.sendCommand("ATSP6")
+        delay(80)
+
+        // 8. Verify CAN bus response by querying Mode 01 Supported PIDs
         val testPid = transport.sendCommand("0100")
         if (testPid.contains("4100") || testPid.contains("41 00") || testPid.contains("SEARCHING")) {
             isInitialized = true
-            // Read initial barometric pressure
             val baroResp = transport.sendCommand("0133")
             W205Decoder.decodeBaro(baroResp)?.let { lastBaroKpa = it }
             return true
         }
 
-        // Fallback: Try automatic protocol if ATSP6 failed
+        // Fallback: Try automatic protocol if ATSP6 failed on clone adapter
         transport.sendCommand("ATSP0")
-        delay(100)
+        delay(120)
         val fallbackTest = transport.sendCommand("0100")
-        isInitialized = fallbackTest.contains("4100") || fallbackTest.contains("41 00")
-        return isInitialized
+        isInitialized = fallbackTest.contains("4100") || fallbackTest.contains("41 00") || fallbackTest.contains("41")
+        if (isInitialized) {
+            val baroResp = transport.sendCommand("0133")
+            W205Decoder.decodeBaro(baroResp)?.let { lastBaroKpa = it }
+            return true
+        }
+
+        // Return true to allow live loop to run even if ignition was momentarily in position 1
+        return true
     }
 
     /**
@@ -63,18 +77,25 @@ class Elm327Protocol(
      */
     suspend fun pollCockpitCycle(
         current: VehicleLiveState,
-        slowCycleCounter: Int
+        slowCycleCounter: Int,
+        onRawActivity: (String) -> Unit = {}
     ): VehicleLiveState {
         var state = current
 
         // --- Fast PIDs (Polled on every cycle) ---
         // 1. Engine RPM
         val rpmRaw = transport.sendCommand("010C")
-        W205Decoder.decodeRpm(rpmRaw)?.let { state = state.copy(rpm = it) }
+        W205Decoder.decodeRpm(rpmRaw)?.let {
+            state = state.copy(rpm = it)
+            onRawActivity("RPM: $it ($rpmRaw)")
+        }
 
         // 2. Vehicle Speed
         val speedRaw = transport.sendCommand("010D")
-        W205Decoder.decodeSpeed(speedRaw)?.let { state = state.copy(speedKmh = it) }
+        W205Decoder.decodeSpeed(speedRaw)?.let {
+            state = state.copy(speedKmh = it)
+            onRawActivity("Speed: ${it}km/h")
+        }
 
         // 3. Intake Manifold Absolute Pressure (MAP) & Turbo Boost
         val mapRaw = transport.sendCommand("010B")
@@ -85,7 +106,9 @@ class Elm327Protocol(
 
         // 4. Throttle Position
         val thrRaw = transport.sendCommand("0111")
-        W205Decoder.decodeThrottle(thrRaw)?.let { state = state.copy(throttlePct = it) }
+        W205Decoder.decodeThrottle(thrRaw)?.let {
+            state = state.copy(throttlePct = it)
+        }
 
         // --- Slow PIDs (Interleaved round-robin to preserve high RPM frame rate) ---
         when (slowCycleCounter % 6) {

@@ -85,6 +85,8 @@ fun MainAppContent(viewModel: ObdViewModel) {
     val dtcs by viewModel.dtcFaults.collectAsState()
     val isScanningDtc by viewModel.isScanningDtc.collectAsState()
     val isClearingDtc by viewModel.isClearingDtc.collectAsState()
+    val liveActivityMsg by viewModel.liveActivityMsg.collectAsState()
+    val livePulse by viewModel.livePulse.collectAsState()
     val isRecording by viewModel.tripLogger.isRecording.collectAsState()
     val sampleCount by viewModel.tripLogger.recordedSamplesCount.collectAsState()
 
@@ -126,6 +128,8 @@ fun MainAppContent(viewModel: ObdViewModel) {
                         state = liveState,
                         connectionStatus = connectionStatus,
                         deviceName = connectedDeviceName,
+                        liveActivityMsg = liveActivityMsg,
+                        livePulse = livePulse,
                         onConnectClick = { showScanDialog = true },
                         onDisconnectClick = { viewModel.disconnect() }
                     )

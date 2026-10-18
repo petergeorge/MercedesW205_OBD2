@@ -25,6 +25,8 @@ fun CockpitScreen(
     state: VehicleLiveState,
     connectionStatus: ConnectionStatus,
     deviceName: String?,
+    liveActivityMsg: String = "",
+    livePulse: Boolean = false,
     onConnectClick: () -> Unit,
     onDisconnectClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -94,6 +96,30 @@ fun CockpitScreen(
                 ) {
                     Text("CONNECT", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
+            }
+        }
+
+        if (connectionStatus == ConnectionStatus.CONNECTED) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0xFF131722))
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (livePulse) "🟢" else "⚪",
+                    fontSize = 10.sp
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = liveActivityMsg.ifEmpty { "Polling live PIDs (010C RPM, 010D Speed, 010B Boost)..." },
+                    color = AmgSilverMuted,
+                    fontSize = 11.sp,
+                    maxLines = 1
+                )
             }
         }
 

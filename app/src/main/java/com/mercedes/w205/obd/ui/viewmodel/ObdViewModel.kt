@@ -41,6 +41,12 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
     private val _isClearingDtc = MutableStateFlow(false)
     val isClearingDtc: StateFlow<Boolean> = _isClearingDtc.asStateFlow()
 
+    private val _liveActivityMsg = MutableStateFlow("Ready to connect")
+    val liveActivityMsg: StateFlow<String> = _liveActivityMsg.asStateFlow()
+
+    private val _livePulse = MutableStateFlow(false)
+    val livePulse: StateFlow<Boolean> = _livePulse.asStateFlow()
+
     val tripLogger = TripDataLogger(application)
     private var tripStartTimeMs = 0L
 
@@ -95,7 +101,10 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
 
             while (isActive && activeTransport?.isConnected() == true) {
                 try {
-                    val updatedState = proto.pollCockpitCycle(_vehicleLiveState.value, slowCounter)
+                    val updatedState = proto.pollCockpitCycle(_vehicleLiveState.value, slowCounter) { act ->
+                        _liveActivityMsg.value = act
+                        _livePulse.value = !_livePulse.value
+                    }
                     _vehicleLiveState.value = updatedState
                     slowCounter++
 
@@ -104,10 +113,11 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
                         tripLogger.recordSample(updatedState, tripStartTimeMs)
                     }
 
-                    delay(25) // High-frequency loop
+                    delay(20) // High-frequency loop
                 } catch (e: Exception) {
                     e.printStackTrace()
-                    delay(500)
+                    _liveActivityMsg.value = "Poll error: ${e.message}"
+                    delay(400)
                 }
             }
         }
