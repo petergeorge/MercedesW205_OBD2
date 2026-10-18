@@ -56,7 +56,7 @@ class ClassicBluetoothTransport(
             } catch (e: Exception) {
                 // Fallback for tricky Bluetooth devices (reflection fallback method 1)
                 try {
-                    val m = btDevice.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
+                    val m = btDevice.javaClass.getMethod("createRfcommSocket", Integer.TYPE)
                     sock = m.invoke(btDevice, 1) as BluetoothSocket
                     sock.connect()
                 } catch (e2: Exception) {
