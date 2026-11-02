@@ -48,17 +48,14 @@ class ClassicBluetoothTransport(
             val btDevice: BluetoothDevice = bluetoothAdapter.getRemoteDevice(device.address)
             bluetoothAdapter.cancelDiscovery()
 
-            // Try standard RFCOMM socket first
-            var sock: BluetoothSocket? = null
-            try {
-                sock = btDevice.createRfcommSocketToServiceRecord(SPP_UUID)
-                sock.connect()
+            // Try standard RFCOMM socket first, then fallback to reflection
+            val sock: BluetoothSocket = try {
+                btDevice.createRfcommSocketToServiceRecord(SPP_UUID).apply { connect() }
             } catch (e: Exception) {
                 // Fallback for tricky Bluetooth devices (reflection fallback method 1)
                 try {
                     val m = btDevice.javaClass.getMethod("createRfcommSocket", Int::class.java)
-                    sock = m.invoke(btDevice, 1) as BluetoothSocket
-                    sock.connect()
+                    (m.invoke(btDevice, 1) as BluetoothSocket).apply { connect() }
                 } catch (e2: Exception) {
                     throw e
                 }

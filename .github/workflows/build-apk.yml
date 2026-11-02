@@ -44,11 +44,12 @@ jobs:
         if: failure()
         run: |
           echo "==================== KOTLIN COMPILER ERRORS ===================="
-          grep -E "(e: |error: |\[ERROR\])" build.log || tail -n 60 build.log
+          grep -C 2 -E "(e: file|error: |\[ERROR\])" build.log || tail -n 60 build.log
           echo "================================================================"
           echo "### ❌ Compiler Failure Log" >> $GITHUB_STEP_SUMMARY
           echo '```text' >> $GITHUB_STEP_SUMMARY
-          (grep -E "(e: |error: )" build.log || tail -n 40 build.log) >> $GITHUB_STEP_SUMMARY
+          grep -C 1 -E "(e: file|\[ERROR\])" build.log >> $GITHUB_STEP_SUMMARY 2>&1 || true
+          tail -n 25 build.log >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Upload Build Log on Failure
