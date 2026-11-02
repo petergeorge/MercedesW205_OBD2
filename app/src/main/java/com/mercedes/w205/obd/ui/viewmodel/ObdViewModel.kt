@@ -51,11 +51,29 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
     private var tripStartTimeMs = 0L
 
     private var pollingJob: Job? = null
+    private var statusJob: Job? = null
+
+    private suspend fun internalDisconnect() {
+        pollingJob?.cancel()
+        pollingJob = null
+        statusJob?.cancel()
+        statusJob = null
+        try {
+            activeTransport?.disconnect()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        activeTransport = null
+        elmProtocol = null
+        _connectionStatus.value = ConnectionStatus.DISCONNECTED
+        _connectedDeviceName.value = "Not Connected"
+    }
 
     fun connectDevice(device: BluetoothDeviceInfo) {
         viewModelScope.launch {
-            disconnect()
+            internalDisconnect()
 
+            _liveActivityMsg.value = "Connecting to ${device.name}..."
             val transport: BluetoothTransport = if (device.isBle) {
                 BleTransport(getApplication(), bluetoothAdapter)
             } else {
@@ -64,7 +82,7 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
             activeTransport = transport
 
             // Forward status
-            val statusJob = launch {
+            statusJob = launch {
                 transport.status.collect { s ->
                     _connectionStatus.value = s
                 }
@@ -74,6 +92,7 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
             if (connected) {
                 _connectedDeviceName.value = device.name
                 _connectionStatus.value = ConnectionStatus.INITIALIZING_ELM
+                _liveActivityMsg.value = "Connected. Initializing ELM327 CAN protocol..."
 
                 val protocol = Elm327Protocol(transport)
                 elmProtocol = protocol
@@ -81,14 +100,17 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
                 val initOk = protocol.initialize()
                 if (initOk) {
                     _connectionStatus.value = ConnectionStatus.CONNECTED
+                    _liveActivityMsg.value = "CAN bus initialized. Starting live telemetry..."
                     startLivePolling()
                 } else {
                     _connectionStatus.value = ConnectionStatus.ERROR
-                    disconnect()
+                    _liveActivityMsg.value = "CAN initialization failed. Turn ignition ON."
+                    internalDisconnect()
                 }
             } else {
                 _connectionStatus.value = ConnectionStatus.ERROR
-                statusJob.cancel()
+                _liveActivityMsg.value = "Connection failed. Check Bluetooth pairing."
+                statusJob?.cancel()
             }
         }
     }
@@ -179,14 +201,8 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun disconnect() {
-        pollingJob?.cancel()
-        pollingJob = null
         viewModelScope.launch {
-            activeTransport?.disconnect()
-            activeTransport = null
-            elmProtocol = null
-            _connectionStatus.value = ConnectionStatus.DISCONNECTED
-            _connectedDeviceName.value = "Not Connected"
+            internalDisconnect()
         }
     }
 

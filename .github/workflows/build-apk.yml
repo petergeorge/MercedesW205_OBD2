@@ -35,10 +35,10 @@ jobs:
           echo -e "24333f8a63b6825ea9c5514f83c2829b004d1fee\nd56f5187479451eabf01fb78af6dfcb131a6481e\n24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$ANDROID_SDK_ROOT/licenses/android-sdk-license"
           echo -e "84831b9409646a918e30573bab4c9c91346d8abd" > "$ANDROID_SDK_ROOT/licenses/android-sdk-preview-license"
 
-      - name: Build Android APK
+      - name: Run Unit Tests & Build Android APK
         run: |
           set -o pipefail
-          gradle assembleDebug --stacktrace --no-daemon 2>&1 | tee build.log
+          gradle testDebugUnitTest assembleDebug --stacktrace --no-daemon 2>&1 | tee build.log
 
       - name: Surface Compiler Errors on Failure
         if: failure()

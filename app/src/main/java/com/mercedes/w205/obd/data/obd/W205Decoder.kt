@@ -21,10 +21,14 @@ object W205Decoder {
      * Cleans an ELM327 hex response by removing spaces, headers, and newlines.
      */
     fun cleanHex(raw: String): String {
-        return raw.replace(" ", "")
+        return raw.lines()
+            .map { it.trim().replace(Regex("^[0-9A-Fa-f]:"), "") }
+            .joinToString("")
+            .replace(" ", "")
             .replace("\r", "")
             .replace("\n", "")
             .replace(">", "")
+            .replace(":", "")
             .trim()
             .uppercase()
     }
@@ -150,14 +154,16 @@ object W205Decoder {
     }
 
     /**
-     * Battery Voltage -> Either from ELM327 "ATRV" command (e.g. "14.2V")
+     * Battery Voltage -> Either from ELM327 "ATRV" command (e.g. "14.2V", "14.1V")
      * or Control Module Voltage PID 0142 -> ((A * 256) + B) / 1000.0 V
      */
     fun decodeBatteryVoltage(raw: String): Float? {
-        // Check ATRV format first (e.g. "12.6V" or "14.2V")
-        val vMatch = Regex("([0-9]{1,2}\\.[0-9]+)").find(raw)
-        if (vMatch != null && !raw.contains("41")) {
-            return vMatch.groupValues[1].toFloatOrNull()
+        // Check ATRV format first (e.g. "12.6V" or "14.1V")
+        if (raw.contains("V", ignoreCase = true)) {
+            val vMatch = Regex("([0-9]{1,2}\\.[0-9]+)").find(raw)
+            if (vMatch != null) {
+                return vMatch.groupValues[1].toFloatOrNull()
+            }
         }
 
         // Check PID 0142
@@ -187,13 +193,24 @@ object W205Decoder {
     /**
      * Decodes Mode 03 / Mode 07 DTC diagnostic responses into standard fault codes.
      * Response: 43 02 01 28 02 99 ... (P0128, P0299)
+     * Mode 07 response: 47 01 04 30 ... (P0430)
      */
-    fun decodeDtcs(raw: String): List<String> {
+    fun decodeDtcs(raw: String, expectedMode: String? = null): List<String> {
         val clean = cleanHex(raw)
         val dtcs = mutableListOf<String>()
 
-        // Look for Mode 03 response prefix "43" or Mode 07 prefix "47"
-        val prefixIdx = clean.indexOf("43").takeIf { it != -1 } ?: clean.indexOf("47")
+        // Look for specified mode prefix, or whichever valid prefix appears first
+        val prefixIdx = if (expectedMode != null) {
+            clean.indexOf(expectedMode)
+        } else {
+            val idx43 = clean.indexOf("43")
+            val idx47 = clean.indexOf("47")
+            when {
+                idx43 != -1 && idx47 != -1 -> minOf(idx43, idx47)
+                idx43 != -1 -> idx43
+                else -> idx47
+            }
+        }
         if (prefixIdx == -1) return emptyList()
 
         // Skip Mode byte (2 chars) and DTC count byte (2 chars, e.g. "4302" -> skip 4 chars)

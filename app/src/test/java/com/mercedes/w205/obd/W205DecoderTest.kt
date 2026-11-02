@@ -45,6 +45,10 @@ class W205DecoderTest {
         assertEquals(14.2f, W205Decoder.decodeBatteryVoltage("14.2V") ?: 0f, 0.05f)
         assertEquals(12.6f, W205Decoder.decodeBatteryVoltage("12.6V") ?: 0f, 0.05f)
 
+        // ATRV containing "41" (e.g. 14.1V, 12.41V)
+        assertEquals(14.1f, W205Decoder.decodeBatteryVoltage("14.1V") ?: 0f, 0.05f)
+        assertEquals(12.41f, W205Decoder.decodeBatteryVoltage("12.41V") ?: 0f, 0.05f)
+
         // PID 0142 format: 41 42 35 E8 -> (0x35E8 = 13800) / 1000 = 13.8V
         assertEquals(13.8f, W205Decoder.decodeBatteryVoltage("41 42 35 E8") ?: 0f, 0.05f)
     }
@@ -53,6 +57,30 @@ class W205DecoderTest {
     fun testDtcDecoding() {
         // Mode 03 response: 43 02 01 28 02 99 (P0128 and P0299)
         val raw = "43 02 01 28 02 99"
+        val dtcs = W205Decoder.decodeDtcs(raw)
+        assertEquals(2, dtcs.size)
+        assertEquals("P0128", dtcs[0])
+        assertEquals("P0299", dtcs[1])
+    }
+
+    @Test
+    fun testMode07DtcWith43InFaultCode() {
+        // Mode 07 pending response for P0430: "47 01 04 30"
+        // Previously masked because "43" was matched at index 5 before header "47"
+        val raw = "47 01 04 30"
+        val dtcsExplicit = W205Decoder.decodeDtcs(raw, expectedMode = "47")
+        assertEquals(1, dtcsExplicit.size)
+        assertEquals("P0430", dtcsExplicit[0])
+
+        val dtcsAuto = W205Decoder.decodeDtcs(raw)
+        assertEquals(1, dtcsAuto.size)
+        assertEquals("P0430", dtcsAuto[0])
+    }
+
+    @Test
+    fun testMultiLineDtcDecoding() {
+        // Multi-line CAN response with frame line indices: "0: 43 02 01 28\n1: 02 99 00 00"
+        val raw = "0: 43 02 01 28\n1: 02 99 00 00"
         val dtcs = W205Decoder.decodeDtcs(raw)
         assertEquals(2, dtcs.size)
         assertEquals("P0128", dtcs[0])

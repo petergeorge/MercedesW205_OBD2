@@ -152,11 +152,11 @@ class Elm327Protocol(
 
         // Request stored DTCs (Mode 03)
         val mode03Resp = transport.sendCommand("03")
-        dtcs.addAll(W205Decoder.decodeDtcs(mode03Resp))
+        dtcs.addAll(W205Decoder.decodeDtcs(mode03Resp, expectedMode = "43"))
 
         // Request pending DTCs (Mode 07)
         val mode07Resp = transport.sendCommand("07")
-        dtcs.addAll(W205Decoder.decodeDtcs(mode07Resp))
+        dtcs.addAll(W205Decoder.decodeDtcs(mode07Resp, expectedMode = "47"))
 
         return dtcs.toList().sorted()
     }
